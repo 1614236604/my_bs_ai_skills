@@ -1,0 +1,16 @@
+{
+    "files.exclude": {
+        "**/.cache": true,
+        "**/cuapp": true,
+        "**/src/.gitignore": true,
+        "**/src/common/3rdparty": true,
+        "**/src/common/cmn/export_pri": true,
+        "**/src/common/cmn/src_pri": true,
+        "**/src/components": true,
+        "**/src/include": true,
+        "**/src/nmk": true,
+        "**/src/rom": true,
+        "**/src/tools": true
+    },
+    "explorer.excludeGitIgnore": false
+}
