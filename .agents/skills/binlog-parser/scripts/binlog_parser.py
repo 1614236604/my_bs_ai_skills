@@ -154,73 +154,22 @@ def parse_file(filepath):
 def main():
     p = argparse.ArgumentParser(description='Parse binlog binary log files')
     p.add_argument('file', help='binlog file path (e.g. ttilog.0.00)')
-    p.add_argument('-n', '--count', type=int, default=0, help='show first N events (0=all)')
-    p.add_argument('--tail', type=int, default=0, help='show last N events')
-    p.add_argument('-s', '--severity', help='min severity filter (e.g. WARN, INFO, DEBUG)')
-    p.add_argument('-g', '--grep', help='filter messages containing this substring')
-    p.add_argument('--file-filter', help='filter by source file name substring')
-    p.add_argument('--raw', action='store_true', help='output without timestamp formatting')
-    p.add_argument('--stats', action='store_true', help='show event statistics instead of log lines')
-    p.add_argument('--tz', type=int, default=8, help='timezone offset in hours (default: 8 for CST)')
+    p.add_argument('-o', '--output', help='output file path (default: <input>.txt)')
     args = p.parse_args()
 
-    sev_threshold = 7
-    if args.severity:
-        name = args.severity.upper()
-        if name in SEVERITY_NAMES:
-            sev_threshold = SEVERITY_NAMES.index(name)
-        else:
-            print(f'Unknown severity: {name}. Use: {", ".join(SEVERITY_NAMES)}', file=sys.stderr)
-            sys.exit(1)
+    output_path = args.output if args.output else args.file + '.txt'
+    tz = timezone(timedelta(hours=8))
 
-    tz = timezone(timedelta(hours=args.tz))
-
-    if args.stats:
-        stats = {}
+    with open(output_path, 'w') as out:
+        count_written = 0
         for clock, sev, fname, line, msg in parse_file(args.file):
-            key = (fname, line, sev)
-            if key not in stats:
-                stats[key] = {'count': 0, 'fmt': msg[:80]}
-            stats[key]['count'] += 1
-        print(f'{"Count":>8}  {"Severity":<7}  {"File:Line":<30}  Message')
-        print('-' * 90)
-        for (fname, line, sev), info in sorted(stats.items(), key=lambda x: -x[1]['count']):
-            sev_name = SEVERITY_NAMES[sev] if sev < len(SEVERITY_NAMES) else str(sev)
-            print(f'{info["count"]:>8}  {sev_name:<7}  {fname}:{line:<20}  {info["fmt"]}')
-        return
-
-    results = []
-    for clock, sev, fname, line, msg in parse_file(args.file):
-        if sev > sev_threshold:
-            continue
-        if args.grep and args.grep not in msg:
-            continue
-        if args.file_filter and args.file_filter not in fname:
-            continue
-
-        if args.raw:
-            ts = str(clock)
-        else:
             dt = datetime.fromtimestamp(clock / 1e9, tz=tz)
             ts = dt.strftime('%H:%M:%S.') + f'{dt.microsecond:06d}'
+            sev_name = SEVERITY_NAMES[sev] if sev < len(SEVERITY_NAMES) else str(sev)
+            print(f'[{ts}] [{sev_name:<6}] [{fname}:{line}] {msg}', file=out)
+            count_written += 1
 
-        sev_name = SEVERITY_NAMES[sev] if sev < len(SEVERITY_NAMES) else str(sev)
-        entry = f'[{ts}] [{sev_name:<6}] [{fname}:{line}] {msg}'
-
-        if args.tail:
-            results.append(entry)
-            if len(results) > args.tail:
-                results.pop(0)
-        else:
-            print(entry)
-            if args.count:
-                args.count -= 1
-                if args.count <= 0:
-                    break
-
-    if args.tail:
-        for entry in results:
-            print(entry)
+    print(f'Output written to {output_path} ({count_written} entries)', file=sys.stderr)
 
 
 if __name__ == '__main__':
